@@ -1,0 +1,91 @@
+import torch
+import gradio as gr
+import numpy as np
+from PIL import Image
+import scipy.io.wavfile as wavfile
+from transformers import pipeline
+
+# device id: 0 for GPU, -1 for CPU
+cuda = 0 if torch.cuda.is_available() else -1
+
+captioner = pipeline(
+    "image-to-text",
+    model="Salesforce/blip-image-captioning-large",
+    device=cuda,
+)
+
+narrator = pipeline(
+    "text-to-speech",
+    model="kakao-enterprise/vits-vctk",
+    device=cuda,
+)
+
+
+def extract_audio_and_sr(tts_output):
+    if isinstance(tts_output, str):
+        raise RuntimeError(f"TTS pipeline returned a plain string; no audio was generated. Output: {tts_output}")
+
+    audio = None
+    sr = None
+
+    if isinstance(tts_output, dict):
+        if "audio" in tts_output:
+            audio = tts_output["audio"]
+        elif "waveform" in tts_output:
+            audio = tts_output["waveform"]
+        elif "speech" in tts_output:
+            audio = tts_output["speech"]
+        sr = tts_output.get("sampling_rate")
+    elif isinstance(tts_output, list) and len(tts_output) > 0 and isinstance(tts_output[0], dict):
+        first = tts_output[0]
+        if "audio" in first:
+            audio = first["audio"]
+        elif "waveform" in first:
+            audio = first["waveform"]
+        elif "speech" in first:
+            audio = first["speech"]
+        sr = first.get("sampling_rate")
+    else:
+        raise RuntimeError(f"Unrecognized TTS output format: {tts_output!r}")
+
+    if audio is None or sr is None:
+        raise RuntimeError(f"Missing audio or sampling rate in TTS output: {tts_output!r}")
+
+    return np.asarray(audio), int(sr)
+
+
+def caption_my_image(pil_image: Image.Image):
+    caption_result = captioner(pil_image)
+    if not caption_result or "generated_text" not in caption_result[0]:
+        raise RuntimeError(f"Captioning failed: {caption_result}")
+    semantics = caption_result[0]["generated_text"]
+
+    # *Call the TTS pipeline* with the caption text
+    tts_output = narrator(semantics)
+    audio, sr = extract_audio_and_sr(tts_output)
+
+    # flatten if needed
+    if audio.ndim == 2 and audio.shape[0] == 1:
+        audio = audio[0]
+
+    if np.issubdtype(audio.dtype, np.floating):
+        audio = np.clip(audio, -1.0, 1.0)
+        audio_int16 = (audio * 32767).astype(np.int16)
+    else:
+        audio_int16 = audio.astype(np.int16)
+
+    output_path = "output.wav"
+    wavfile.write(output_path, sr, audio_int16)
+    return output_path
+
+
+demo = gr.Interface(
+    fn=caption_my_image,
+    inputs=gr.Image(label="Selected Image", type="pil"),
+    outputs=gr.Audio(label="Image Caption"),
+    title="@Taufiquekhan projects : Image captioning",
+    description="This application captions the image and speaks it aloud using TTS.",
+)
+
+if _name_ == "_main_":
+    demo.launch()
