@@ -1,0 +1,6 @@
+The Hugging Face Model link
+Salesforce/blip-image-captioning-large
+Link :-https://huggingface.co/Salesforce/blip-image-captioning-large
+The Hugging Face Model link
+kakao-enterprise/vits-vctk
+Link :-https://huggingface.co/kakao-enterprise/vits-vctk
