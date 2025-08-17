@@ -83,7 +83,7 @@ demo = gr.Interface(
     fn=caption_my_image,
     inputs=gr.Image(label="Selected Image", type="pil"),
     outputs=gr.Audio(label="Image Caption"),
-    title="@Taufiquekhan projects : Image captioning",
+    title="@Kartik Kharabe projects : Image captioning",
     description="This application captions the image and speaks it aloud using TTS.",
 )
 
